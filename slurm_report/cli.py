@@ -25,6 +25,11 @@ def parse_args():
         action="store_true",
         help="Include per-partition metrics in the output",
     )
+    parser.add_argument(
+        "--cost",
+        action="store_true",
+        help="Include total energy usage and cost column",
+    )
     return parser.parse_args()
 
 
@@ -78,7 +83,13 @@ def main():
             user_ids = [line.strip() for line in f if line.strip()]
 
     try:
-        report_df = generate_report(user_ids, start, end, include_partitions=args.partitions)
+        report_df = generate_report(
+            user_ids,
+            start,
+            end,
+            include_partitions=args.partitions,
+            include_cost=args.cost,
+        )
     except RuntimeError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -91,6 +102,11 @@ def main():
         "GPU_Hours = ElapsedHours * AllocGPUs\n"
         "RAM_Hours(GB-h) = ElapsedHours * AllocRAM_GB"
     )
+    if args.cost:
+        explanation += (
+            "\nEnergy_Wh = CPU_Hours*150W + GPU_Hours*400W "
+            "(0.40 €/kWh)"
+        )
 
     if sys.stdout.isatty():
         from tabulate import tabulate

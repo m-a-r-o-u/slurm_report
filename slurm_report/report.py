@@ -9,7 +9,12 @@ def compute_metrics(df):
     return df
 
 
-def generate_report(user_ids, start, end, include_partitions=False):
+CPU_POWER_W = 150
+GPU_POWER_W = 400
+PRICE_PER_KWH = 0.40
+
+
+def generate_report(user_ids, start, end, include_partitions=False, include_cost=False):
     """Return a DataFrame summarising usage per user and totals.
 
     Parameters
@@ -20,6 +25,8 @@ def generate_report(user_ids, start, end, include_partitions=False):
         Date range for the report.
     include_partitions : bool, optional
         If True, include per-partition metrics in the returned DataFrame.
+    include_cost : bool, optional
+        If True, add a column with total energy usage and cost.
     """
     all_jobs = []
     for user in user_ids:
@@ -40,6 +47,11 @@ def generate_report(user_ids, start, end, include_partitions=False):
     df_all = pd.concat([df, df.assign(UserID="All")])
 
     totals = df_all.groupby("UserID")[["CPU_Hours", "GPU_Hours", "RAM_Hours"]].sum()
+    if include_cost:
+        totals["Energy_Wh"] = (
+            totals["CPU_Hours"] * CPU_POWER_W + totals["GPU_Hours"] * GPU_POWER_W
+        )
+        totals["Cost_EUR"] = totals["Energy_Wh"] / 1000 * PRICE_PER_KWH
 
     if include_partitions:
         part = df_all.pivot_table(
@@ -85,5 +97,18 @@ def generate_report(user_ids, start, end, include_partitions=False):
     # Round all numeric columns to one decimal place for cleaner output
     numeric_cols = report_df.select_dtypes(include="number").columns
     report_df[numeric_cols] = report_df[numeric_cols].round(1)
+
+    if include_cost:
+        energy_values = report_df["Energy_Wh"]
+        cost_values = report_df["Cost_EUR"]
+        report_df["Energy_Wh"] = [
+            f"{e:.1f} ({c:.2f}€)" for e, c in zip(energy_values, cost_values)
+        ]
+        report_df.drop(columns=["Cost_EUR"], inplace=True)
+        cols = list(report_df.columns)
+        ram_idx = cols.index("RAM_Hours(GB-h)")
+        energy_idx = cols.index("Energy_Wh")
+        cols.insert(ram_idx + 1, cols.pop(energy_idx))
+        report_df = report_df[cols]
 
     return report_df
