@@ -36,6 +36,9 @@ README.md
 
 A command-line tool to generate SLURM usage reports.
 
+Job step entries such as `JOBID.batch` or `JOBID.0` are automatically ignored so
+each job is counted only once.
+
 ## Installation
 
 ```bash
