@@ -10,10 +10,15 @@ def compute_metrics(df):
 
 
 def generate_report(user_ids, start, end):
+    """Return a DataFrame summarising usage per user and totals."""
     all_jobs = []
     for user in user_ids:
         jobs = fetch_slurm_jobs(user, start, end)
         all_jobs.append(jobs)
+
+    if not all_jobs:
+        return pd.DataFrame(columns=["UserID"])
+
     df = pd.concat(all_jobs, ignore_index=True)
 
     # Convert elapsed to hours
@@ -21,20 +26,34 @@ def generate_report(user_ids, start, end):
 
     df = compute_metrics(df)
 
-    # Aggregated totals across all partitions
-    agg = (
-        df.groupby("UserID")[["CPU_Hours", "GPU_Hours", "RAM_Hours"]]
-        .sum()
-        .reset_index()
-    )
-    agg["Partition"] = "Total"
+    # Duplicate rows with a UserID="All" to compute aggregated totals
+    df_all = pd.concat([df, df.assign(UserID="All")])
 
-    # Breakdown per partition
-    part = (
-        df.groupby(["UserID", "Partition"])[["CPU_Hours", "GPU_Hours", "RAM_Hours"]]
-        .sum()
-        .reset_index()
+    totals = df_all.groupby("UserID")[["CPU_Hours", "GPU_Hours", "RAM_Hours"]].sum()
+
+    part = df_all.pivot_table(
+        index="UserID",
+        columns="Partition",
+        values=["CPU_Hours", "GPU_Hours", "RAM_Hours"],
+        aggfunc="sum",
+        fill_value=0,
     )
 
-    report_df = pd.concat([agg, part], ignore_index=True)
+    report_df = pd.concat([totals, part], axis=1).reset_index()
+
+    # Flatten column MultiIndex: (Metric, Partition) -> Metric_Partition
+    new_cols = ["UserID"]
+    for col in report_df.columns[1:]:
+        if isinstance(col, tuple):
+            metric, part_name = col
+            new_cols.append(f"{metric}_{part_name}")
+        else:
+            new_cols.append(col)
+    report_df.columns = new_cols
+
+    # Order rows: aggregate "All" row first, then individual users
+    unique_users = sorted(df["UserID"].unique())
+    order = ["All"] + unique_users
+    report_df = report_df.set_index("UserID").loc[order].reset_index()
+
     return report_df
