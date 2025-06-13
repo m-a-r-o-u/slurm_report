@@ -13,7 +13,7 @@ def fetch_slurm_jobs(user, start, end):
         "sacct", "-u", user,
         "--starttime", start_str,
         "--endtime", end_str,
-        "--format=User,Partition,Elapsed,AllocCPUS,AllocTRES",
+        "--format=JobIDRaw,User,Partition,Elapsed,AllocCPUS,AllocTRES",
         "--parsable2", "--noheader"
     ]
     try:
@@ -25,7 +25,11 @@ def fetch_slurm_jobs(user, start, end):
     lines = [l for l in result.stdout.splitlines() if l]
     rows = []
     for line in lines:
-        user_id, partition, elapsed, alloc_cpus, alloc_tres = line.split("|")
+        job_id, user_id, partition, elapsed, alloc_cpus, alloc_tres = line.split("|")
+
+        # Skip job steps like 5176070.batch or 5176070.0
+        if "." in job_id:
+            continue
 
         # Some sacct job-step entries come without a user or partition. They
         # would produce empty rows and columns like "CPU_Hours_". Skip them.
@@ -36,6 +40,7 @@ def fetch_slurm_jobs(user, start, end):
         gpus = parse_gres(alloc_tres)
         ram = parse_ram(alloc_tres)
         rows.append({
+            "JobID": job_id,
             "UserID": user_id,
             "Partition": partition,
             "Elapsed": pd.Timedelta(hours=elapsed_hours),
@@ -43,7 +48,10 @@ def fetch_slurm_jobs(user, start, end):
             "AllocGPUs": gpus,
             "AllocRAM_GB": ram,
         })
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+    if not df.empty:
+        df = df.drop_duplicates(subset="JobID")
+    return df
 
 
 def parse_elapsed(elapsed_str):
