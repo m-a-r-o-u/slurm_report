@@ -50,6 +50,7 @@ Usage
 slurm_report --user alice --start 2025-06-01 --end 2025-06-13
 slurm_report --users alice,bob --start 2025-06-01 --end 2025-06-13
 slurm_report --userfile users.txt --start 2025-06-01 --end 2025-06-13 > output.csv
+slurm_report --user alice --start 2025-06-01 --end 2025-06-13 --partitions
 ```
 
 Dependencies

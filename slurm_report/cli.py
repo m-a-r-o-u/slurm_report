@@ -12,6 +12,11 @@ def parse_args():
     group.add_argument("--userfile", help="File with one user ID per line")
     parser.add_argument("--start", required=True, help="Start date (YYYY-MM-DD)")
     parser.add_argument("--end", required=True, help="End date (YYYY-MM-DD)")
+    parser.add_argument(
+        "--partitions",
+        action="store_true",
+        help="Include per-partition metrics in the output",
+    )
     return parser.parse_args()
 
 
@@ -42,7 +47,7 @@ def main():
             user_ids = [line.strip() for line in f if line.strip()]
 
     try:
-        report_df = generate_report(user_ids, start, end)
+        report_df = generate_report(user_ids, start, end, include_partitions=args.partitions)
     except RuntimeError as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
