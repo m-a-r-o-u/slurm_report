@@ -82,4 +82,8 @@ def generate_report(user_ids, start, end, include_partitions=False):
     order = ["All"] + unique_users
     report_df = report_df.set_index("UserID").loc[order].reset_index()
 
+    # Round all numeric columns to one decimal place for cleaner output
+    numeric_cols = report_df.select_dtypes(include="number").columns
+    report_df[numeric_cols] = report_df[numeric_cols].round(1)
+
     return report_df
