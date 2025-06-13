@@ -41,15 +41,24 @@ def generate_report(user_ids, start, end):
 
     report_df = pd.concat([totals, part], axis=1).reset_index()
 
-    # Flatten column MultiIndex: (Metric, Partition) -> Metric_Partition
-    new_cols = ["UserID"]
+    # Flatten column MultiIndex: (Metric, Partition) -> Metric\nPartition
+    keep_cols = ["UserID"]
+    new_names = ["UserID"]
     for col in report_df.columns[1:]:
         if isinstance(col, tuple):
             metric, part_name = col
-            new_cols.append(f"{metric}_{part_name}")
+            if part_name:
+                keep_cols.append(col)
+                new_names.append(f"{metric}\n{part_name}")
         else:
-            new_cols.append(col)
-    report_df.columns = new_cols
+            keep_cols.append(col)
+            new_names.append(col)
+
+    report_df = report_df[keep_cols]
+    report_df.columns = new_names
+
+    # Add unit to RAM hours column names
+    report_df.rename(columns=lambda c: c.replace("RAM_Hours", "RAM_Hours(GB-h)"), inplace=True)
 
     # Order rows: aggregate "All" row first, then individual users
     unique_users = sorted(df["UserID"].unique())

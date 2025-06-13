@@ -48,8 +48,16 @@ def main():
         sys.exit(1)
 
     # Output
+    explanation = (
+        "CPU_Hours = ElapsedHours * AllocCPUS\n"
+        "GPU_Hours = ElapsedHours * AllocGPUs\n"
+        "RAM_Hours(GB-h) = ElapsedHours * AllocRAM_GB"
+    )
+
     if sys.stdout.isatty():
         from tabulate import tabulate
+        print(explanation)
         print(tabulate(report_df, headers="keys", tablefmt="grid"))
     else:
+        print(explanation)
         print(report_df.to_csv(index=False))

@@ -26,6 +26,12 @@ def fetch_slurm_jobs(user, start, end):
     rows = []
     for line in lines:
         user_id, partition, elapsed, alloc_cpus, alloc_tres = line.split("|")
+
+        # Some sacct job-step entries come without a user or partition. They
+        # would produce empty rows and columns like "CPU_Hours_". Skip them.
+        if not user_id or not partition:
+            continue
+
         elapsed_hours = parse_elapsed(elapsed)
         gpus = parse_gres(alloc_tres)
         ram = parse_ram(alloc_tres)
