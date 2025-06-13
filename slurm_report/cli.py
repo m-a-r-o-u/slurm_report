@@ -1,6 +1,7 @@
 import argparse
 import sys
 from datetime import datetime
+import calendar
 from .report import generate_report
 
 
@@ -10,8 +11,15 @@ def parse_args():
     group.add_argument("--user", help="Single user ID")
     group.add_argument("--users", help="Comma-separated user IDs")
     group.add_argument("--userfile", help="File with one user ID per line")
-    parser.add_argument("--start", required=True, help="Start date (YYYY-MM-DD)")
-    parser.add_argument("--end", required=True, help="End date (YYYY-MM-DD)")
+    parser.add_argument(
+        "--start",
+        required=True,
+        help="Start date (YYYY-MM or YYYY-MM-DD)"
+    )
+    parser.add_argument(
+        "--end",
+        help="End date (YYYY-MM or YYYY-MM-DD)"
+    )
     parser.add_argument(
         "--partitions",
         action="store_true",
@@ -20,22 +28,45 @@ def parse_args():
     return parser.parse_args()
 
 
+def parse_flexible_date(date_str):
+    """Return (datetime, has_day) from a YYYY-MM or YYYY-MM-DD string."""
+    for fmt in ("%Y-%m-%d", "%Y-%m"):
+        try:
+            dt = datetime.strptime(date_str, fmt)
+            return dt, fmt == "%Y-%m-%d"
+        except ValueError:
+            continue
+    raise ValueError
+
+
 def main():
     args = parse_args()
 
     try:
-        start = datetime.strptime(args.start, "%Y-%m-%d")
-        end = datetime.strptime(args.end, "%Y-%m-%d")
+        start, start_has_day = parse_flexible_date(args.start)
     except ValueError:
-        print("Error: Dates must be in YYYY-MM-DD format.", file=sys.stderr)
+        print("Error: --start must be YYYY-MM or YYYY-MM-DD", file=sys.stderr)
         sys.exit(1)
+
+    if args.end:
+        try:
+            end, end_has_day = parse_flexible_date(args.end)
+        except ValueError:
+            print("Error: --end must be YYYY-MM or YYYY-MM-DD", file=sys.stderr)
+            sys.exit(1)
+
+        if not end_has_day:
+            last_day = calendar.monthrange(end.year, end.month)[1]
+            end = end.replace(day=last_day)
+    else:
+        if start_has_day:
+            end = datetime.now()
+        else:
+            last_day = calendar.monthrange(start.year, start.month)[1]
+            end = start.replace(day=last_day)
 
     if start > end:
         print("Error: Start date must be earlier than or equal to end date.", file=sys.stderr)
-        sys.exit(1)
-
-    if (end - start).days > 31:
-        print("Error: Date range must be within a month.", file=sys.stderr)
         sys.exit(1)
 
     if args.user:
@@ -53,7 +84,9 @@ def main():
         sys.exit(1)
 
     # Output
+    interval = f"Reporting period: {start.strftime('%Y-%m-%d')} to {end.strftime('%Y-%m-%d')}"
     explanation = (
+        f"{interval}\n"
         "CPU_Hours = ElapsedHours * AllocCPUS\n"
         "GPU_Hours = ElapsedHours * AllocGPUs\n"
         "RAM_Hours(GB-h) = ElapsedHours * AllocRAM_GB"
